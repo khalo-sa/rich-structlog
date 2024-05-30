@@ -1,1 +1,1 @@
-# richlog
+# rich-structlog

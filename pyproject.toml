@@ -8,6 +8,7 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 authors = [{ name = "Khaled Sakallah", email = "ks.dev@posteo.de" }]
 requires-python = ">=3.10"
 license = { text = "MIT" }
+readme = "README.md"
 
 [tool.hatch.version]
 source = "vcs"

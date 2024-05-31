@@ -174,8 +174,6 @@ class RichConsoleRenderer:
             exc_type, exc_value, traceback = _figure_out_exc_info(exc_info)
             if exc_type and exc_value and traceback:
                 tb = Traceback()
-            else:
-                raise NotImplementedError("exc_info tuple is incomplete.")
 
         renderables: list[ConsoleRenderable] = [header]
 

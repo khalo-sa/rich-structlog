@@ -22,6 +22,7 @@ console = Console()
 def setup_logging(
     log_level: str = "INFO",
     pkg2loglevel: dict[str, str] | None = None,
+    dt_fmt: str = "%Y-%m-%d %H:%M:%S",
 ):
     # intercept everything at the root logger
     logging.root.handlers = [InterceptHandler(log_level, pkg2loglevel)]
@@ -44,7 +45,7 @@ def setup_logging(
             structlog.processors.StackInfoRenderer(),
             structlog.processors.CallsiteParameterAdder(),
             structlog.dev.set_exc_info,
-            structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
+            structlog.processors.TimeStamper(fmt=dt_fmt, utc=False),
             # structlog.dev.ConsoleRenderer(),
             RichConsoleRenderer(),
         ],

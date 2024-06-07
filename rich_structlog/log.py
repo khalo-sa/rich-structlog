@@ -2,7 +2,6 @@ import inspect
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 import structlog
 from rich.console import Console, ConsoleRenderable, Group, RenderableType
@@ -75,15 +74,7 @@ class RichConsoleRenderer:
 
     def __init__(self) -> None:
         self.max_path_segments = 1
-        self.show_time = True
-        self.show_level = True
-        self.show_path = True
-        self.time_format = "%H:%M:%S"
-        self.omit_repeated_times = True
-        self.level_width = 2
-        self._last_time: Optional[Text] = None
         self.repr_highlighter = ReprHighlighter()
-        self.console = Console()
 
     def level2color(self, level: str) -> str:
         match level:
@@ -168,7 +159,7 @@ class RichConsoleRenderer:
         ts: str = event_dict["timestamp"]
         event: str = event_dict["event"]
 
-        header = self.create_header(ts, level, pkgname, path, lineno, event)
+        header = self.create_header(ts, level, pkgname, path, lineno, event, ctx)
 
         # handle exceptions
         tb = None
@@ -176,12 +167,10 @@ class RichConsoleRenderer:
         if exc_info:
             exc_type, exc_value, traceback = _figure_out_exc_info(exc_info)
             if exc_type and exc_value and traceback:
-                tb = Traceback()
+                tb = Traceback(width=None, show_locals=False)
 
         renderables: list[ConsoleRenderable] = [header]
 
-        if ctx:
-            renderables.append(self.create_ctx(**ctx))
         if tb:
             renderables.append(tb)
 
@@ -190,7 +179,7 @@ class RichConsoleRenderer:
         with console.use_theme(
             theme=Theme(
                 {
-                    "repr.str": "grey58",
+                    # "repr.str": "grey58",
                     # "repr.str": f"dim {color}",
                     # "repr.indent": f"dim {color}",
                     "repr.indent": "dim grey58",
@@ -213,8 +202,27 @@ class RichConsoleRenderer:
             self.run(event_dict)
         return capture.get().strip()
 
+    def map_log_level_to_emoji(self, log_level: str):
+        log_level_emoji_map = {
+            "DEBUG": "🐞",  # Alternative: 🐛
+            "INFO": "ℹ️",  # Alternative: 🛈 (if available), 📘
+            "WARNING": "⚠️",  # Alternative: 🟡, 🚨
+            "ERROR": "❌",  # Alternative: 🚫, 🛑
+            "CRITICAL": "🔥",  # Alternative: 🚒, ⚡
+        }
+        return log_level_emoji_map.get(
+            log_level.upper(), "❓"
+        )  # Alternative for unknown: ❔
+
     def create_header(
-        self, ts: str, level: str, pkgname: str, path: str, lineno: int, event: str
+        self,
+        ts: str,
+        level: str,
+        pkgname: str,
+        path: str,
+        lineno: int,
+        event: str,
+        ctx: dict | None,
     ) -> "Table":
         table = Table.grid(padding=(0, 1))
         table.expand = True
@@ -222,16 +230,14 @@ class RichConsoleRenderer:
         # ts
         table.add_column(style="log.time")
         # level
-        table.add_column(style="log.level", width=5)
+        table.add_column(style="", width=8)
+        table.add_column(style="", width=2, justify="center")
         table.add_column(ratio=1, overflow="fold")
-        table.add_column(style="")
 
         row: list["RenderableType"] = []
 
         # ts
         row.append(ts)
-        # level
-        row.append(level)
 
         # pkgname+path+lineno
         abs_path = Path(path).absolute()
@@ -241,12 +247,27 @@ class RichConsoleRenderer:
             path_segments = path.split("/")
             if len(path_segments) > self.max_path_segments:
                 path = "/".join(path_segments[-self.max_path_segments :])
-
-        # event
-        row.append(self.repr_highlighter(event))
+        # path
         row.append(
-            f"[light_goldenrod2]{pkgname}[/light_goldenrod2] [link=file://{abs_path}:{lineno}]{path}:{lineno}[/link]"
+            f"[light_goldenrod2][link=file://{abs_path}:{lineno}]{pkgname}[/link][/light_goldenrod2]"
         )
+        # level
+        row.append(self.map_log_level_to_emoji(level))
+
+        # event + ctx
+        renderables: list[RenderableType] = [self.repr_highlighter(event)]
+        if ctx:
+            # renderables.append(self.create_ctx(**ctx))
+            # renderables.append(Pretty(**ctx))
+            renderables.append(
+                Pretty(
+                    ctx,
+                    indent_guides=True,
+                    expand_all=True,
+                ),
+            )
+        group = Group(*renderables)
+        row.append(group)
 
         table.add_row(*row)
         return table

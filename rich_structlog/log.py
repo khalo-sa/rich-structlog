@@ -16,6 +16,8 @@ from rich.traceback import Traceback
 from structlog.processors import _figure_out_exc_info
 from structlog.typing import EventDict, WrappedLogger
 
+console = Console()
+
 
 def setup_logging(
     log_level: str = "INFO",
@@ -100,7 +102,7 @@ class RichConsoleRenderer:
         return color
 
     def print_log_error(self, msg: str):
-        self.console.print(f"Logging error: {msg}", style="red bold")
+        console.print(f"Logging error: {msg}", style="red bold")
 
     def get_caller(self, package_name: str | None) -> tuple[str, str, int] | None:
         # Fix frame
@@ -184,7 +186,7 @@ class RichConsoleRenderer:
 
         group = Group(*renderables)
 
-        with self.console.use_theme(
+        with console.use_theme(
             theme=Theme(
                 {
                     "repr.str": "grey58",
@@ -203,10 +205,10 @@ class RichConsoleRenderer:
                 }
             )
         ):
-            self.console.print(group)
+            console.print(group)
 
     def __call__(self, logger: WrappedLogger, name: str, event_dict: EventDict) -> str:
-        with self.console.capture() as capture:
+        with console.capture() as capture:
             self.run(event_dict)
         return capture.get().strip()
 

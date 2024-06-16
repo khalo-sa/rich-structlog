@@ -1,0 +1,7 @@
+version: "3"
+
+tasks:
+  install:
+    cmds:
+      - uv venv -p 3.12
+      - uv pip install -e ".[dev]" ;

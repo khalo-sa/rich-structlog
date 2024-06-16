@@ -1,7 +1,9 @@
 import inspect
 import logging
+import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import structlog
 from rich.console import Console, ConsoleRenderable, Group, RenderableType
@@ -159,7 +161,10 @@ class RichConsoleRenderer:
         ts: str = event_dict["timestamp"]
         event: str = event_dict["event"]
 
-        header = self.create_header(ts, level, pkgname, path, lineno, event, ctx)
+        # extract rule command if exists
+        rule = ctx.pop("__rule__", None)
+
+        table = self.create_table(ts, level, pkgname, path, lineno, event, ctx)
 
         # handle exceptions
         tb = None
@@ -169,7 +174,7 @@ class RichConsoleRenderer:
             if exc_type and exc_value and traceback:
                 tb = Traceback(width=None, show_locals=False)
 
-        renderables: list[ConsoleRenderable] = [header]
+        renderables: list[ConsoleRenderable] = [table]
 
         if tb:
             renderables.append(tb)
@@ -195,6 +200,9 @@ class RichConsoleRenderer:
                 }
             )
         ):
+            if rule is not None:
+                title = rule if isinstance(rule, str) else ""
+                console.rule(title)
             console.print(group)
 
     def __call__(self, logger: WrappedLogger, name: str, event_dict: EventDict) -> str:
@@ -214,7 +222,7 @@ class RichConsoleRenderer:
             log_level.upper(), "❓"
         )  # Alternative for unknown: ❔
 
-    def create_header(
+    def create_table(
         self,
         ts: str,
         level: str,
@@ -222,43 +230,60 @@ class RichConsoleRenderer:
         path: str,
         lineno: int,
         event: str,
-        ctx: dict | None,
+        ctx: dict[str, Any],
     ) -> "Table":
         table = Table.grid(padding=(0, 1))
         table.expand = True
 
-        # ts
-        table.add_column(style="log.time")
-        # level
-        table.add_column(style="", width=8)
-        table.add_column(style="", width=2, justify="center")
-        table.add_column(ratio=1, overflow="fold")
-
+        # init the row
         row: list["RenderableType"] = []
 
         # ts
+        table.add_column(style="log.time")
         row.append(ts)
 
-        # pkgname+path+lineno
+        # src
+        table.add_column(style="", width=8)
         abs_path = Path(path).absolute()
         path = str(abs_path)
-        # shorten path
-        if self.max_path_segments:
-            path_segments = path.split("/")
-            if len(path_segments) > self.max_path_segments:
-                path = "/".join(path_segments[-self.max_path_segments :])
-        # path
         row.append(
             f"[light_goldenrod2][link=file://{abs_path}:{lineno}]{pkgname}[/link][/light_goldenrod2]"
         )
+
         # level
+        table.add_column(style="", width=2, justify="center")
         row.append(self.map_log_level_to_emoji(level))
 
-        # event + ctx
+        # extra cols
+        for k in list(ctx.keys()):
+            if re.fullmatch(r"__col_\w+__", k):
+                col = ctx.pop(k)
+                try:
+                    assert isinstance(col, dict)
+                    value = col.get("value")
+                    assert value and isinstance(value, str), "value should be a string"
+                    col_width = col.get("width")
+                    if col_width is not None:
+                        assert isinstance(
+                            col_width, int
+                        ), "__col__.width should be an integer"
+                    col_style = col.get("style", "magenta")
+                    assert isinstance(
+                        col_style, str
+                    ), "__col__.style should be a string"
+
+                    table.add_column(style=col_style, width=col_width, no_wrap=True)
+
+                    row.append(value)
+                except AssertionError as err:
+                    console.print(
+                        f"rich-structlog error: Failed to parse __col__: {err}"
+                    )
+
+        # msg
+        table.add_column(ratio=1, overflow="fold")
         renderables: list[RenderableType] = [self.repr_highlighter(event)]
         if ctx:
-            # renderables.append(self.create_ctx(**ctx))
-            # renderables.append(Pretty(**ctx))
             renderables.append(
                 Pretty(
                     ctx,

@@ -25,6 +25,7 @@ def setup_logging(
     pkg2loglevel: dict[str, str] | None = None,
     dt_fmt: str = "%Y-%m-%d %H:%M:%S",
     show_source_col: bool = True,
+    source_col_width: int = 10,
     clickable_source: bool = True,
 ):
     # intercept everything at the root logger
@@ -51,7 +52,9 @@ def setup_logging(
             structlog.processors.TimeStamper(fmt=dt_fmt, utc=False),
             # structlog.dev.ConsoleRenderer(),
             RichConsoleRenderer(
-                show_source_col=show_source_col, clickable_source=clickable_source
+                show_source_col=show_source_col,
+                source_col_width=source_col_width,
+                clickable_source=clickable_source,
             ),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
@@ -81,11 +84,13 @@ class RichConsoleRenderer:
     def __init__(
         self,
         show_source_col: bool = True,
+        source_col_width: int = 12,
         clickable_source: bool = True,
     ) -> None:
         self.max_path_segments = 1
         self.repr_highlighter = ReprHighlighter()
         self.show_source_col = show_source_col
+        self.source_col_width = source_col_width
         self.clickable_source = clickable_source
 
     def level2color(self, level: str) -> str:
@@ -136,6 +141,8 @@ class RichConsoleRenderer:
         if not package_name:
             self.print_log_error("Could not determine package name")
             return None
+
+        package_name = package_name.split(".")[0]
 
         return package_name, path, lineno
 
@@ -254,7 +261,7 @@ class RichConsoleRenderer:
 
         # src
         if self.show_source_col:
-            table.add_column(style="", width=8)
+            table.add_column(style="", width=self.source_col_width)
             abs_path = Path(path).absolute()
             path = str(abs_path)
             if self.clickable_source:
@@ -338,7 +345,9 @@ class RichConsoleRenderer:
 
 class InterceptHandler(logging.Handler):
     def __init__(
-        self, log_level: str = "INFO", pkg2loglevel: dict[str, str] | None = None
+        self,
+        log_level: str = "INFO",
+        pkg2loglevel: dict[str, str] | None = None,
     ):
         super().__init__()
 

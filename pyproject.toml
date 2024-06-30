@@ -1,20 +1,19 @@
-[build-system]
-requires = ["hatchling", "hatch-requirements-txt", "hatch-vcs"]
-build-backend = "hatchling.build"
-
 [project]
 name = "rich-structlog"
-dynamic = ["version", "dependencies", "optional-dependencies"]
 authors = [{ name = "Khaled Sakallah", email = "ks.dev@posteo.de" }]
-requires-python = ">=3.10"
-license = { text = "MIT" }
+dynamic = ["version"]
+description = "Add your description here"
 readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["colorama>=0.4.6", "rich>=13.9.2", "structlog>=24.4.0"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.metadata.hooks.requirements_txt]
-files = ["requirements.txt", "requirements.dev.txt"]
+[tool.uv]
+dev-dependencies = ["hatch>=1.13.0", "ruff>=0.7.0", "twine>=5.1.1"]

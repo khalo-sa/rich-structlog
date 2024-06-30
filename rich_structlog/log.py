@@ -24,6 +24,8 @@ def setup_logging(
     log_level: str = "INFO",
     pkg2loglevel: dict[str, str] | None = None,
     dt_fmt: str = "%Y-%m-%d %H:%M:%S",
+    show_source_col: bool = True,
+    clickable_source: bool = True,
 ):
     # intercept everything at the root logger
     logging.root.handlers = [InterceptHandler(log_level, pkg2loglevel)]
@@ -48,7 +50,9 @@ def setup_logging(
             structlog.dev.set_exc_info,
             structlog.processors.TimeStamper(fmt=dt_fmt, utc=False),
             # structlog.dev.ConsoleRenderer(),
-            RichConsoleRenderer(),
+            RichConsoleRenderer(
+                show_source_col=show_source_col, clickable_source=clickable_source
+            ),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
         context_class=dict,
@@ -74,9 +78,15 @@ class RichConsoleRenderer:
     adapted from https://github.com/Textualize/rich/blob/master/rich/_log_render.py#L14
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        show_source_col: bool = True,
+        clickable_source: bool = True,
+    ) -> None:
         self.max_path_segments = 1
         self.repr_highlighter = ReprHighlighter()
+        self.show_source_col = show_source_col
+        self.clickable_source = clickable_source
 
     def level2color(self, level: str) -> str:
         match level:
@@ -243,12 +253,16 @@ class RichConsoleRenderer:
         row.append(ts)
 
         # src
-        table.add_column(style="", width=8)
-        abs_path = Path(path).absolute()
-        path = str(abs_path)
-        row.append(
-            f"[light_goldenrod2][link=file://{abs_path}:{lineno}]{pkgname}[/link][/light_goldenrod2]"
-        )
+        if self.show_source_col:
+            table.add_column(style="", width=8)
+            abs_path = Path(path).absolute()
+            path = str(abs_path)
+            if self.clickable_source:
+                source = f"[link=file://{abs_path}:{lineno}]{pkgname}[/link]"
+            else:
+                source = pkgname
+
+            row.append(f"[light_goldenrod2]{source}[/light_goldenrod2]")
 
         # level
         table.add_column(style="", width=2, justify="center")
@@ -347,3 +361,17 @@ class InterceptHandler(logging.Handler):
             return
 
         self.log.log(levelno, record.getMessage(), pkgname=pkgname)
+
+
+if __name__ == "__main__":
+    log: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+    for kwargs in [
+        {"log_level": "DEBUG"},
+        {"log_level": "DEBUG", "show_source_col": False},
+        {"log_level": "DEBUG", "clickable_source": False},
+    ]:
+        setup_logging(**kwargs)
+
+        log.info("Hello, World!", foo="bar", kwargs=kwargs)
+        log.debug("Hello, World!", foo="bar", kwargs=kwargs)
